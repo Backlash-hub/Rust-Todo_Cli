@@ -1,11 +1,13 @@
 use std::io;
+use chrono::{DateTime, Utc, TimeZone, NaiveDate, Local};
 fn print_menu() {
     println!("Please select number 1-4:");
     println!("1. View all items");
     println!("2. Add item");
     println!("3. Edit item");
-    println!("4. Quit");
-    println!("5. Clear all items");
+    println!("4. Clear all items");
+    println!("5. Quit");
+    println!();
 }
 
 enum Action {
@@ -22,8 +24,8 @@ fn action(choice: i32) -> Action {
         1 => Action::View,
         2 => Action::Add,
         3 => Action::Edit,
-        4 => Action::Quit,
-        5 => Action::Clear,
+        4 => Action::Clear,
+        5 => Action::Quit,
         _ => Action::Invalid,
     }
 }
@@ -41,7 +43,11 @@ fn conduct_action(action: Action, todo_list: &mut Vec<String>) -> bool {
             true
         }
         Action::Add => {
-            println!("Enter a new item: ");
+            println!();
+            let date= read_date();
+            
+
+            println!("Enter a new todo: ");
             let item = read_line_trimmed();
             if !item.is_empty() {
                 todo_list.push(item);
@@ -54,6 +60,7 @@ fn conduct_action(action: Action, todo_list: &mut Vec<String>) -> bool {
                 println!("No todos to edit");
                 return true;
             }
+            println!();
             println!("What item would you like to edit?");
             let index = get_input() as usize;
 
@@ -61,7 +68,7 @@ fn conduct_action(action: Action, todo_list: &mut Vec<String>) -> bool {
                 println!("Invalid item number");
                 return true;
             }
-
+            println!();
             println!("Enter new text: ");
             let text = read_line_trimmed();
             todo_list[index - 1] = text;
@@ -69,16 +76,40 @@ fn conduct_action(action: Action, todo_list: &mut Vec<String>) -> bool {
             true
         }
         Action::Clear => {
+            println!();
+            println!("Cleared all items");
             todo_list.clear();
             true
         }
         Action::Quit => {
+            println!();
             println!("Goodbye!");
             false
         }
         Action::Invalid => {
+            println!();
             println!("Invalid action");
             true
+        }
+    }
+}
+
+fn read_date() -> NaiveDate {
+    let format = "%Y-%m-%d";
+
+    loop {
+        println!("Enter todo date (YYYY-MM-DD):");
+
+        let mut date_str = String::new();
+        io::stdin()
+            .read_line(&mut date_str)
+            .expect("Failed to read line");
+
+        let date_str = date_str.trim();
+
+        match NaiveDate::parse_from_str(date_str, format) {
+            Ok(date) => return date,
+            Err(_) => println!("Invalid date. Try again (example: 2026-02-18)."),
         }
     }
 }
