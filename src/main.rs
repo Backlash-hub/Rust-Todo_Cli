@@ -1,12 +1,38 @@
+use std::collections::BTreeMap;
 use std::io;
-use chrono::{DateTime, Utc, TimeZone, NaiveDate, Local};
+use emojis;
+use chrono::NaiveDateTime;
+
+type TodoMap = BTreeMap<NaiveDateTime, String>;
+
 fn print_menu() {
-    println!("Please select number 1-4:");
-    println!("1. View all items");
-    println!("2. Add item");
-    println!("3. Edit item");
-    println!("4. Clear all items");
-    println!("5. Quit");
+    let mag = emojis::get_by_shortcode("mag")
+        .map(|e| e.as_str())
+        .unwrap_or("🔍");
+
+    let plus = emojis::get_by_shortcode("plus")
+        .map(|e| e.as_str())
+        .unwrap_or("➕");
+
+    let change = emojis::get_by_shortcode("edit")
+        .map(|e| e.as_str())
+        .unwrap_or("🔄");
+
+    let subtract = emojis::get_by_shortcode("subtract")
+        .map(|e| e.as_str())
+        .unwrap_or("➖");
+
+    let stop = emojis::get_by_shortcode("stop")
+        .map(|e| e.as_str())
+        .unwrap_or("🛑");
+
+
+    println!("Please select number 1-5:");
+    println!("1. {} View all items", mag);
+    println!("2. {} Add item", plus);
+    println!("3. {} Edit item", change);
+    println!("4. {} Clear all items", subtract);
+    println!("5. {} Quit", stop);
     println!();
 }
 
@@ -14,8 +40,8 @@ enum Action {
     View,
     Add,
     Edit,
-    Quit,
     Clear,
+    Quit,
     Invalid,
 }
 
@@ -30,86 +56,153 @@ fn action(choice: i32) -> Action {
     }
 }
 
-fn conduct_action(action: Action, todo_list: &mut Vec<String>) -> bool {
+fn conduct_action(action: Action, todo_list: &mut TodoMap) -> bool {
     match action {
         Action::View => {
             if todo_list.is_empty() {
-                println!("No todos found");
-            } else {
-                for (i, item) in todo_list.iter().enumerate() {
-                    println!("{}: {}", i, item);
-                }
+                println!("(No items yet)");
+                return true;
             }
-            true
-        }
-        Action::Add => {
-            println!();
-            let date= read_date();
-            
 
-            println!("Enter a new todo: ");
-            let item = read_line_trimmed();
-            if !item.is_empty() {
-                todo_list.push(item);
-                println!("New item added");
+            println!("Todo list (sorted by date/time):");
+            for (i, (dt, todo)) in todo_list.iter().enumerate() {
+                println!(
+                    "{}. {}  -  {}",
+                    i + 1,
+                    dt.format("%Y-%m-%d %H:%M"),
+                    todo
+                );
             }
             true
         }
+
+        Action::Add => {
+            let due = read_date_time();
+
+            println!("Enter a new todo:");
+            let item = read_line_trimmed();
+
+            if item.is_empty() {
+                println!("Nothing added.");
+                return true;
+            }
+
+            // Map keys must be unique
+            if todo_list.contains_key(&due) {
+                println!("That date/time already has a todo. Pick a different time.");
+                return true;
+            }
+
+            todo_list.insert(due, item);
+            println!("New item added.");
+            true
+        }
+
         Action::Edit => {
             if todo_list.is_empty() {
-                println!("No todos to edit");
+                println!("No todos to edit.");
                 return true;
             }
-            println!();
-            println!("What item would you like to edit?");
-            let index = get_input() as usize;
 
-            if index == 0 ||  index > todo_list.len() {
-                println!("Invalid item number");
+            println!("Which item number do you want to edit?");
+            for (i, (dt, todo)) in todo_list.iter().enumerate() {
+                println!(
+                    "{}. {}  -  {}",
+                    i + 1,
+                    dt.format("%Y-%m-%d %H:%M"),
+                    todo
+                );
+            }
+
+            let index = get_input() as usize;
+            if index == 0 || index > todo_list.len() {
+                println!("Invalid item number.");
                 return true;
             }
-            println!();
-            println!("Enter new text: ");
-            let text = read_line_trimmed();
-            todo_list[index - 1] = text;
-            println!("Item Updated");
+
+            let old_key = *todo_list.keys().nth(index - 1).unwrap();
+
+            println!("Edit date/time? (yes/no)");
+            let edit_dt = read_line_trimmed().to_lowercase();
+
+            let mut new_key = old_key; // start with old key
+            match edit_dt.as_str() {
+                "yes" | "y" => {
+                    new_key = read_date_time();
+                }
+                "no" | "n" => { /* keep old */ }
+                _ => {
+                    println!("Please type yes or no.");
+                    return true;
+                }
+            }
+
+
+            println!("Edit todo text? (yes/no)");
+            let edit_text = read_line_trimmed().to_lowercase();
+
+            let mut new_text = todo_list.get(&old_key).unwrap().clone(); // start with old text
+            match edit_text.as_str() {
+                "yes" | "y" => {
+                    println!("Enter new text:");
+                    let t = read_line_trimmed();
+                    if t.is_empty() {
+                        println!("Text cannot be empty.");
+                        return true;
+                    }
+                    new_text = t;
+                }
+                "no" | "n" => { /* keep old */ }
+                _ => {
+                    println!("Please type yes or no.");
+                    return true;
+                }
+            }
+
+            todo_list.remove(&old_key);
+            if todo_list.contains_key(&new_key) && new_key != old_key {
+                println!("That date/time is already used. Edit cancelled.");
+                todo_list.insert(old_key, new_text);
+                return true;
+            }
+
+            todo_list.insert(new_key, new_text);
+            println!("Item updated.");
+
             true
         }
+
         Action::Clear => {
-            println!();
-            println!("Cleared all items");
             todo_list.clear();
+            println!("Cleared all items.");
             true
         }
+
         Action::Quit => {
-            println!();
             println!("Goodbye!");
             false
         }
+
         Action::Invalid => {
-            println!();
-            println!("Invalid action");
+            println!("Invalid option (pick 1-5).");
             true
         }
     }
 }
 
-fn read_date() -> NaiveDate {
-    let format = "%Y-%m-%d";
+fn read_date_time() -> NaiveDateTime {
+    let format = "%Y-%m-%d %H:%M";
 
     loop {
-        println!("Enter todo date (YYYY-MM-DD):");
+        println!("Enter todo date and time (YYYY-MM-DD HH:MM):");
 
-        let mut date_str = String::new();
-        io::stdin()
-            .read_line(&mut date_str)
-            .expect("Failed to read line");
+        let mut s = String::new();
+        io::stdin().read_line(&mut s).expect("Failed to read line");
+        let s = s.trim();
 
-        let date_str = date_str.trim();
-
-        match NaiveDate::parse_from_str(date_str, format) {
-            Ok(date) => return date,
-            Err(_) => println!("Invalid date. Try again (example: 2026-02-18)."),
+        match NaiveDateTime::parse_from_str(s, format) {
+            Ok(dt) => return dt,
+            Err(_) => println!("Invalid. Use YYYY-MM-DD HH:MM (24-hour)."),
         }
     }
 }
@@ -125,17 +218,23 @@ fn get_input() -> i32 {
 }
 
 fn main() {
-    println!("****** TODO APP ******");
-    let mut todo_list: Vec<String> = Vec::new();
+    let rocket = emojis::get_by_shortcode("rocket")
+        .map(|e| e.as_str())
+        .unwrap_or("🚀");
+    
+    println!("{}****** TODO APP ******{}", rocket, rocket );
+    let mut todo_list: TodoMap = BTreeMap::new();
 
     loop {
         print_menu();
         let choice = get_input();
-        let action = action(choice);
-        let keep_running = conduct_action(action, &mut todo_list);
+        let act = action(choice);
+
+        let keep_running = conduct_action(act, &mut todo_list);
         if !keep_running {
             break;
         }
+
         println!();
     }
 }
